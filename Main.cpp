@@ -6,6 +6,11 @@
 #include "iostream"
 #include "vector"
 
+struct Vertex {
+	glm::vec3 position;
+	float color;
+};
+
 /**
 * ²åÖµËã·¨
 * (i0,d0),(i1,d1)
@@ -113,8 +118,59 @@ void DrawFilledTriangle(glm::vec2 P0, glm::vec2 P1, glm::vec2 P2, COLORREF color
 	}
 }
 
+void DrawShadedTriangle(Vertex v0,Vertex v1,Vertex v2,COLORREF color) {
+	if (v0.position.y > v1.position.y) std::swap(v0, v1);
+	if (v0.position.y > v2.position.y) std::swap(v0, v2);
+	if (v1.position.y > v2.position.y) std::swap(v1, v2);
+
+	BYTE r = GetRValue(color);
+	BYTE g = GetGValue(color);
+	BYTE b = GetBValue(color);
+
+	std::vector<float> x01 = Interpolate(v0.position.y, v0.position.x, v1.position.y, v1.position.x);
+	std::vector<float> x12 = Interpolate(v1.position.y, v1.position.x, v2.position.y, v2.position.x);
+	std::vector<float> x02 = Interpolate(v0.position.y, v0.position.x, v2.position.y, v2.position.x);
+
+	std::vector<float> h01 = Interpolate(v0.position.y, v0.color, v1.position.y, v1.color);
+	std::vector<float> h12 = Interpolate(v1.position.y, v1.color, v2.position.y, v2.color);
+	std::vector<float> h02 = Interpolate(v0.position.y, v0.color, v2.position.y, v2.color);
+
+	x01.insert(x01.end(), x12.begin(), x12.end());
+	h01.insert(h01.end(), h12.begin(), h12.end());
+
+	std::vector<float> x012(x01);
+	std::vector<float> h012(h01);
+
+	std::vector<float> x_left, x_right, h_left, h_right;
+
+	float mid = glm::floor(x012.size() / 2);
+	if (x02[mid] < x012[mid]) {
+		x_left = x02;
+		x_right = x012;
+		h_left = h02;
+		h_right = h012;
+	}
+	else {
+		x_left = x012;
+		x_right = x02;
+		h_left = h012;
+		h_right = h02;
+	}
+
+	for (int i = v0.position.y; i < v2.position.y; i++) {
+		std::vector<float> h_segment = Interpolate(x_left[i - v0.position.y], h_left[i - v0.position.y], x_right[i - v0.position.y], h_right[i - v0.position.y]);
+		for (int j = x_left[i - v0.position.y]; j < x_right[i - v0.position.y]; j++) {
+			COLORREF shaded_color = RGB(r * h_segment[j - x_left[i - v0.position.y]],
+				g * h_segment[j - x_left[i - v0.position.y]],
+				b * h_segment[j - x_left[i - v0.position.y]]);
+			putpixel(j, i, shaded_color);
+		}
+	}
+}
+
 void testDrawLine();
 void testDrawTriangle();
+void testDrawShadedTriangle();
 
 int main() {
 	initgraph(640, 640);
@@ -122,6 +178,7 @@ int main() {
 
 	testDrawLine();
 	testDrawTriangle();
+	testDrawShadedTriangle();
 
 	_getch();
 	closegraph();
@@ -134,7 +191,22 @@ void testDrawLine() {
 	DrawLine(glm::vec2(300, 300), glm::vec2(300, 100), BLUE);
 	DrawLine(glm::vec2(300, 100), glm::vec2(100, 100), WHITE);
 }
+
 void testDrawTriangle() {
 	DrawWireframeTriangle(glm::vec2(100,400), glm::vec2(100,600), glm::vec2(300,600), YELLOW);
 	DrawFilledTriangle(glm::vec2(400, 600), glm::vec2(600, 600), glm::vec2(600, 400), CYAN);
+}
+
+void testDrawShadedTriangle() {
+	Vertex v0;
+	v0.position = { 400, 100 ,0 };
+	v0.color = 1.0f;
+	Vertex v1;
+	v1.position = { 600, 100 ,0 };
+	v1.color = 0.5f;
+	Vertex v2;
+	v2.position = { 600, 300 ,0 };
+	v2.color = 0.0f;
+
+	DrawShadedTriangle(v0, v1, v2, RGB(255, 0, 0));
 }
