@@ -9,7 +9,7 @@
 /**
 * 插值算法
 * (i0,d0),(i1,d1)
-* i0到i1每一个标准步长对应的值，对应在d0到d1之间的值
+* i0到i1每一个标准步长对应的值，对应在d0到d1之间的值[i0,i1)
 * 返回d0到d1之间值的集合
 */
 std::vector<float> Interpolate(float i0, float d0, float i1, float d1) {
@@ -56,6 +56,63 @@ void DrawWireframeTriangle(glm::vec2 P0, glm::vec2 P1, glm::vec2 P2, COLORREF co
 	DrawLine(P2, P0, color);
 }
 
+void DrawFilledTriangle(glm::vec2 P0, glm::vec2 P1, glm::vec2 P2, COLORREF color) {
+	// 排序顶点：P0.y <= P1.y <= P2.y
+	if (P0.y > P1.y) std::swap(P0, P1);
+	if (P0.y > P2.y) std::swap(P0, P2);
+	if (P1.y > P2.y) std::swap(P1, P2);
+
+	//------------------P2|\
+	//--------------------| \
+	//--------------------|  \ P1
+	//--------------------|  /
+	//--------------------| /
+	//------------------P0|/	
+	// 对每条边的x求插值，因为起点(P0)终点(P1)相同，所以求出的插值(x)个数x02与x01/x12个数之和相同(x01/x12多一个重复的P1)
+	std::vector<float> x01 = Interpolate(P0.y, P0.x, P1.y, P1.x);
+	std::vector<float> x02 = Interpolate(P0.y, P0.x, P2.y, P2.x);
+	std::vector<float> x12 = Interpolate(P1.y, P1.x, P2.y, P2.x);
+
+	// 将x01和x12中的点放在一起
+	x01.insert(x01.end(), x12.begin(), x12.end());
+	std::vector<float> x012(x01);
+
+	// 对于两种情况插值
+	float mid = glm::floor(x012.size() / 2);
+	std::vector<float> x_left;
+	std::vector<float> x_right;
+
+	//-------第一种情况
+	//---------P2|\
+	//-----------| \
+	//-----------|  \ P1
+	//-----------|  /
+	//-----------| /
+	//---------P0|/	
+	if (x012[mid] > x02[mid]) {
+		x_left = x02;
+		x_right = x012;
+	}
+	//-------第二种情况
+	//----------/|P2
+	//---------/ | 
+	//------p1/  | 
+	//--------\	 |
+	//---------\ |
+	//----------\|P0	
+	else {
+		x_left = x012;
+		x_right = x02;
+	}
+
+	// 从下到上，从左往右绘制
+	for (int i = P0.y; i < P2.y; i++) {
+		for (int j = x_left[i - P0.y]; j < x_right[i - P0.y]; j++) {
+			putpixel(j, i, color);
+		}
+	}
+}
+
 void testDrawLine();
 void testDrawTriangle();
 
@@ -78,5 +135,6 @@ void testDrawLine() {
 	DrawLine(glm::vec2(300, 100), glm::vec2(100, 100), WHITE);
 }
 void testDrawTriangle() {
-	DrawWireframeTriangle(glm::vec2(100,400),glm::vec2(100,600),glm::vec2(300,600), YELLOW);
+	DrawWireframeTriangle(glm::vec2(100,400), glm::vec2(100,600), glm::vec2(300,600), YELLOW);
+	DrawFilledTriangle(glm::vec2(400, 600), glm::vec2(600, 600), glm::vec2(600, 400), CYAN);
 }
