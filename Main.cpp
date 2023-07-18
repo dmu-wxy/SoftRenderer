@@ -7,11 +7,11 @@
 #include "vector"
 
 struct Vertex {
-	glm::vec3 position;
+	glm::vec4 position;
 	COLORREF color;
 	BYTE r, g, b;
 
-	Vertex(glm::vec3 position, COLORREF color) {
+	Vertex(glm::vec4 position, COLORREF color) {
 		this->position = position;
 		this->color = color;
 		this->r = GetRValue(color);
@@ -181,20 +181,40 @@ void DrawShadedTriangle(Vertex v0, Vertex v1, Vertex v2) {
 		}
 	}
 }
+
+Vertex transform(Vertex v,glm::mat4 scale,glm::mat4 rotate,glm::mat4 translate,
+	glm::mat4 view,glm::mat4 perspective,int screenWidth,int screenHeight) {
+	// 缩放-旋转-平移
+	glm::mat4 model = translate * rotate * scale;
+	glm::mat4 mvp = perspective * view * model;
+	v.position = mvp * v.position;
+
+	// 视口变换
+	float reciprocalW = 1 / v.position.w;
+	v.position.x = (v.position.x * reciprocalW + 1.0f) * 0.5f * screenWidth;
+	v.position.y = (1.0f - v.position.y * reciprocalW) * 0.5f * screenHeight;  // window y轴坐标反着
+
+	return v;
+}
+
 void testDrawLine();
 void testDrawTriangle();
-void testDrawShadedTriangle();
+void testDrawShadedTriangle(int screenWidth,int screenHeight);
+Vertex testTransform(Vertex v,int screenWidth,int screenHeight);
+void testNoteBook();
 
 int main() {
-	initgraph(640, 640);
+	int screenWidth = 640, screenHeight = 640;
+	initgraph(screenWidth, screenHeight);
 	putpixel(100, 100, RED);
 
 	testDrawLine();
 	testDrawTriangle();
-	testDrawShadedTriangle();
+	testDrawShadedTriangle(screenWidth,screenHeight);
 
 	_getch();
 	closegraph();
+	// testNoteBook();
 	return 0;
 }
 
@@ -210,10 +230,83 @@ void testDrawTriangle() {
 	DrawFilledTriangle(glm::vec2(400, 600), glm::vec2(600, 600), glm::vec2(600, 400), CYAN);
 }
 
-void testDrawShadedTriangle() {
-	Vertex v0({ 400, 100 ,0 },RED);
-	Vertex v1({ 600, 100 ,0 },BLUE);
-	Vertex v2({ 600, 300 ,0 },GREEN);
+void testDrawShadedTriangle(int screenWidth,int screenHeight) {
+	// 跟随OpenGL的规范，要求经过mvp转换后只能看到[0,1]之间的点，外面的点被剪裁
+	Vertex v0({ -0.5f, -0.5f ,0 ,1},RED);
+	Vertex v1({ 0.5f, -0.5f ,0 ,1},BLUE);
+	Vertex v2({ 0.0f, 0.5f ,0 ,1},GREEN);
+
+	v0 = testTransform(v0, screenWidth, screenHeight);
+	v1 = testTransform(v1, screenWidth, screenHeight);
+	v2 = testTransform(v2, screenWidth, screenHeight);
 
 	DrawShadedTriangle(v0, v1, v2);
+}
+
+Vertex testTransform(Vertex v,int screenWidth,int screenHeight) {
+
+	return transform(v,
+		glm::scale(glm::mat4(1.0f), glm::vec3(1.0f, 1.0f, 1.0f)),
+		glm::rotate(glm::mat4(1.0f), glm::radians(45.0f), glm::vec3(0, 0, 1)),
+		glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 1)),
+		glm::lookAt(glm::vec3(0, 0, 0), glm::vec3(0, 0, 1), glm::vec3(0, 1, 0)),
+		glm::perspective(glm::radians(90.0f), (float)screenWidth / (float)screenHeight, 0.1f, 100.0f),
+		screenWidth, screenHeight);
+}
+
+
+
+
+
+
+
+
+
+
+
+void testNoteBook() {
+	int ScreenWidth = 800;
+	int ScreenHeight = 600;
+
+	initgraph(ScreenWidth, ScreenHeight);	// 创建绘图窗口，大小为 640x480 像素
+
+	Vertex v0({ -0.5f, -0.5f ,0.0f,1.0f },RED);
+	Vertex v1({ 0.5f, -0.5f,0.0f,1.0f },GREEN);
+	Vertex v2({ 0.0f, 0.5f ,0.0f,1.0f },BLUE);
+
+	{
+		glm::mat4 sm = glm::scale(glm::mat4(1.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+		glm::mat4 rm = glm::rotate(glm::mat4(1.0f), glm::radians(45.0f), glm::vec3(0, 0, 1));
+		glm::mat4 tm = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 1));
+		//构造模型矩阵
+		glm::mat4 model = tm * rm * sm;
+		//构造视图矩阵
+		glm::mat4 view = glm::lookAt(glm::vec3(0, 0, 0), glm::vec3(0, 0, 1), glm::vec3(0, 1, 0));
+		//构造透视投影矩阵
+		glm::mat4 perspective = glm::perspective(glm::radians(90.0f), (float)ScreenWidth / (float)ScreenHeight, 0.1f, 100.0f);
+		//构造MVP矩阵
+		glm::mat4 mvp = perspective * view * model;
+		//对顶点进行MVP矩阵变换
+		v0.position = mvp * v0.position;
+		v1.position = mvp * v1.position;
+		v2.position = mvp * v2.position;
+
+		//透视除法
+		float reciprocalW0 = 1 / v0.position.w;
+		float reciprocalW1 = 1 / v1.position.w;
+		float reciprocalW2 = 1 / v2.position.w;
+
+		//屏幕映射
+		v0.position.x = (v0.position.x * reciprocalW0 + 1.0f) * 0.5f * ScreenWidth;
+		v0.position.y = (1.0f - v0.position.y * reciprocalW0) * 0.5f * ScreenHeight;
+		v1.position.x = (v1.position.x * reciprocalW1 + 1.0f) * 0.5f * ScreenWidth;
+		v1.position.y = (1.0f - v1.position.y * reciprocalW1) * 0.5f * ScreenHeight;
+		v2.position.x = (v2.position.x * reciprocalW2 + 1.0f) * 0.5f * ScreenWidth;
+		v2.position.y = (1.0f - v2.position.y * reciprocalW2) * 0.5f * ScreenHeight;
+	}
+
+	DrawShadedTriangle(v0, v1, v2);
+
+	_getch();
+	closegraph();			// 关闭绘图窗口
 }
