@@ -8,9 +8,17 @@
 
 struct Vertex {
 	glm::vec3 position;
-	float color;
-};
+	COLORREF color;
+	BYTE r, g, b;
 
+	Vertex(glm::vec3 position, COLORREF color) {
+		this->position = position;
+		this->color = color;
+		this->r = GetRValue(color);
+		this->g = GetGValue(color);
+		this->b = GetBValue(color);
+	}
+};
 /**
 * ²åÖµËã·¨
 * (i0,d0),(i1,d1)
@@ -118,56 +126,61 @@ void DrawFilledTriangle(glm::vec2 P0, glm::vec2 P1, glm::vec2 P2, COLORREF color
 	}
 }
 
-void DrawShadedTriangle(Vertex v0,Vertex v1,Vertex v2,COLORREF color) {
+void DrawShadedTriangle(Vertex v0, Vertex v1, Vertex v2) {
 	if (v0.position.y > v1.position.y) std::swap(v0, v1);
 	if (v0.position.y > v2.position.y) std::swap(v0, v2);
 	if (v1.position.y > v2.position.y) std::swap(v1, v2);
-
-	BYTE r = GetRValue(color);
-	BYTE g = GetGValue(color);
-	BYTE b = GetBValue(color);
 
 	std::vector<float> x01 = Interpolate(v0.position.y, v0.position.x, v1.position.y, v1.position.x);
 	std::vector<float> x12 = Interpolate(v1.position.y, v1.position.x, v2.position.y, v2.position.x);
 	std::vector<float> x02 = Interpolate(v0.position.y, v0.position.x, v2.position.y, v2.position.x);
 
-	std::vector<float> h01 = Interpolate(v0.position.y, v0.color, v1.position.y, v1.color);
-	std::vector<float> h12 = Interpolate(v1.position.y, v1.color, v2.position.y, v2.color);
-	std::vector<float> h02 = Interpolate(v0.position.y, v0.color, v2.position.y, v2.color);
+	std::vector<float> r01 = Interpolate(v0.position.y, v0.r, v1.position.y, v1.r);
+	std::vector<float> r12 = Interpolate(v1.position.y, v1.r, v2.position.y, v2.r);
+	std::vector<float> r02 = Interpolate(v0.position.y, v0.r, v2.position.y, v2.r); 
+
+	std::vector<float> g01 = Interpolate(v0.position.y, v0.g, v1.position.y, v1.g);
+	std::vector<float> g12 = Interpolate(v1.position.y, v1.g, v2.position.y, v2.g);
+	std::vector<float> g02 = Interpolate(v0.position.y, v0.g, v2.position.y, v2.g);
+
+	std::vector<float> b01 = Interpolate(v0.position.y, v0.b, v1.position.y, v1.b);
+	std::vector<float> b12 = Interpolate(v1.position.y, v1.b, v2.position.y, v2.b);
+	std::vector<float> b02 = Interpolate(v0.position.y, v0.b, v2.position.y, v2.b);
 
 	x01.insert(x01.end(), x12.begin(), x12.end());
-	h01.insert(h01.end(), h12.begin(), h12.end());
+	r01.insert(r01.end(), r12.begin(), r12.end());
+	g01.insert(g01.end(), g12.begin(), g12.end());
+	b01.insert(b01.end(), b12.begin(), b12.end());
 
-	std::vector<float> x012(x01);
-	std::vector<float> h012(h01);
-
-	std::vector<float> x_left, x_right, h_left, h_right;
-
+	std::vector<float> x012(x01), r012(r01), g012(g01), b012(b01);
+	std::vector<float> x_left, x_right, r_left, r_right, g_left, g_right, b_left, b_right;
 	float mid = glm::floor(x012.size() / 2);
 	if (x02[mid] < x012[mid]) {
-		x_left = x02;
-		x_right = x012;
-		h_left = h02;
-		h_right = h012;
+		x_left = x02; x_right = x012;
+		r_left = r02; r_right = r012;
+		g_left = g02; g_right = g012;
+		b_left = b02; b_right = b012;
 	}
 	else {
-		x_left = x012;
-		x_right = x02;
-		h_left = h012;
-		h_right = h02;
+		x_left = x012; x_right = x02;
+		r_left = r012; r_right = r02;
+		g_left = g012; g_right = g02;
+		b_left = b012; b_right = b02;
 	}
 
-	for (int i = v0.position.y; i < v2.position.y; i++) {
-		std::vector<float> h_segment = Interpolate(x_left[i - v0.position.y], h_left[i - v0.position.y], x_right[i - v0.position.y], h_right[i - v0.position.y]);
-		for (int j = x_left[i - v0.position.y]; j < x_right[i - v0.position.y]; j++) {
-			COLORREF shaded_color = RGB(r * h_segment[j - x_left[i - v0.position.y]],
-				g * h_segment[j - x_left[i - v0.position.y]],
-				b * h_segment[j - x_left[i - v0.position.y]]);
-			putpixel(j, i, shaded_color);
+	for (int y = v0.position.y; y < v2.position.y; y++) {
+		int i = y - v0.position.y;
+		std::vector<float> rv = Interpolate(x_left[i], r_left[i], x_right[i], r_right[i]);
+		std::vector<float> gv = Interpolate(x_left[i], g_left[i], x_right[i], g_right[i]);
+		std::vector<float> bv = Interpolate(x_left[i], b_left[i], x_right[i], b_right[i]);
+		
+		for (int x = x_left[i]; x < x_right[i]; x++) {
+			int j = x - x_left[i];
+			COLORREF c = RGB(rv[j], gv[j], bv[j]);
+			putpixel(x, y, c);
 		}
 	}
 }
-
 void testDrawLine();
 void testDrawTriangle();
 void testDrawShadedTriangle();
@@ -198,15 +211,9 @@ void testDrawTriangle() {
 }
 
 void testDrawShadedTriangle() {
-	Vertex v0;
-	v0.position = { 400, 100 ,0 };
-	v0.color = 1.0f;
-	Vertex v1;
-	v1.position = { 600, 100 ,0 };
-	v1.color = 0.5f;
-	Vertex v2;
-	v2.position = { 600, 300 ,0 };
-	v2.color = 0.0f;
+	Vertex v0({ 400, 100 ,0 },RED);
+	Vertex v1({ 600, 100 ,0 },BLUE);
+	Vertex v2({ 600, 300 ,0 },GREEN);
 
-	DrawShadedTriangle(v0, v1, v2, RGB(255, 0, 0));
+	DrawShadedTriangle(v0, v1, v2);
 }
