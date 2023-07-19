@@ -27,6 +27,30 @@ struct Triangle {
 	glm::vec3 index;
 	COLORREF color;
 };
+
+struct Model {
+	std::string name;
+	std::vector<Vertex> vertices;
+	std::vector<Triangle> triangles;
+};
+
+struct Transform {
+	glm::vec3 translate;
+	glm::vec4 rotation;
+	glm::vec3 scale3D;
+};
+
+// 一个model 包含【转换】初始化条件
+struct Instance {
+	Model model;
+	Transform transform;  // 在世界坐标的转换
+};
+
+// 场景包括许多 模型
+struct Scene {
+	std::vector<Instance> instance;
+};
+
 /**
 * 插值算法
 * (i0,d0),(i1,d1)
@@ -235,11 +259,34 @@ void RenderObject(std::vector<Vertex> vertices, std::vector<Triangle> triangle) 
 	}
 }
 
+void RenderInstance(Instance instances) {
+	Model model = instances.model;
+	glm::mat4 worldM = GetModel(instances.transform.scale3D, instances.transform.rotation, instances.transform.translate);
+
+	for (int i = 0; i < model.vertices.size(); i++) {
+		std::cout << "RenderInstance::transform: " << i << ",before position: " << model.vertices[i].position.x << "," << model.vertices[i].position.y << "," << model.vertices[i].position.z << std::endl;
+		model.vertices[i].position = worldM * model.vertices[i].position;
+		std::cout << "RenderInstance::transform: " << i << ",after position: "<<model.vertices[i].position.x<<","<< model.vertices[i].position.y<<","<< model.vertices[i].position.z<<std::endl;
+	}
+	for (int i = 0; i < model.triangles.size(); i++) {
+		std::cout << "RenderInstance::RenderTriangle: " << i << std::endl;
+		RenderTriangle(model.triangles[i], model.vertices);
+	}
+}
+
+void RenderScene(Scene s) {
+	for (int i = 0; i < s.instance.size(); i++) {
+		std::cout << "RenderScene::RenderInstance: " << i << std::endl;
+		RenderInstance(s.instance[i]);
+	}
+}
+
 void testDrawLine();
 void testDrawTriangle();
 void testDrawShadedTriangle(int screenWidth,int screenHeight);
 Vertex testTransform(Vertex v,int screenWidth,int screenHeight);
 void testRenderObject();
+void testRenderScene();
 void testNoteBook();
 
 int main() {
@@ -247,10 +294,11 @@ int main() {
 	initgraph(screenWidth, screenHeight);
 	putpixel(100, 100, RED);
 
-	testDrawLine();
-	testDrawTriangle();
+	// testDrawLine();
+	// testDrawTriangle();
 	// testDrawShadedTriangle(screenWidth,screenHeight);
-	testRenderObject();
+	// testRenderObject();
+	testRenderScene();
 
 	_getch();
 	closegraph();
@@ -354,7 +402,84 @@ void testRenderObject() {
 	}
 }
 
+void testRenderScene() {
+	std::vector<Vertex> Vertices;
+	Vertices.resize(8);
+	Vertices[0].position = { 1,1,1 ,1 };
+	Vertices[1].position = { -1,1,1,1 };
+	Vertices[2].position = { -1,-1,1 ,1 };
+	Vertices[3].position = { 1,-1,1 ,1 };
+	Vertices[4].position = { 1,1,-1 ,1 };
+	Vertices[5].position = { -1,1,-1 ,1 };
+	Vertices[6].position = { -1,-1,-1 ,1 };
+	Vertices[7].position = { 1,-1,-1 ,1 };
 
+	//Vertices[0].color = 1.0f;
+	//Vertices[1].color = 1.0f;
+	//Vertices[2].color = 0.5f;
+	//Vertices[3].color = 0.5f;
+	//Vertices[4].color = 0.5f;
+	//Vertices[5].color = 0.5f;
+	//Vertices[6].color = 1.0f;
+	//Vertices[7].color = 1.0f;
+
+	std::vector<Triangle> triangles;
+	triangles.resize(12);
+	triangles[0].index = { 0,1,2 };
+	triangles[0].color = RED;
+	triangles[1].index = { 0,2,3 };
+	triangles[1].color = RED;
+	triangles[2].index = { 4,0,3 };
+	triangles[2].color = GREEN;
+	triangles[3].index = { 4,3,7 };
+	triangles[3].color = GREEN;
+	triangles[4].index = { 5,4,7 };
+	triangles[4].color = BLUE;
+	triangles[5].index = { 5,7,6 };
+	triangles[5].color = BLUE;
+	triangles[6].index = { 1,5,6 };
+	triangles[6].color = YELLOW;
+	triangles[7].index = { 1,6,2 };
+	triangles[7].color = YELLOW;
+	triangles[8].index = { 4,5,1 };
+	triangles[8].color = WHITE;
+	triangles[9].index = { 4,1,0 };
+	triangles[9].color = WHITE;
+	triangles[10].index = { 2,6,7 };
+	triangles[10].color = CYAN;
+	triangles[11].index = { 2,7,3 };
+	triangles[11].color = CYAN;
+
+	glm::mat4 model = GetModel();
+	glm::mat4 view = GetView();
+	glm::mat4 perspective = GetPerspective();
+
+	for (int i = 0; i < Vertices.size(); i++) {
+		Vertices[i] = transform(Vertices[i], model, view, perspective);
+	}
+
+	Scene s;
+	Instance instance1;
+	instance1.model.name = "1";
+	instance1.model.vertices = Vertices;
+	instance1.model.triangles = triangles;
+	instance1.transform.translate = { 30,0,1 };
+	instance1.transform.rotation = { 0,1,0,0.0f };
+	instance1.transform.scale3D = { 1,1,1 };
+
+	Instance instance2;
+	instance2.model.name = "2";
+	instance2.model.vertices = Vertices;
+	instance2.model.triangles = triangles;
+	instance2.transform.translate = { -30,0,1 };
+	instance2.transform.rotation = { 0,1,0,-0.0f };
+	instance2.transform.scale3D = { 1,1,1 };
+
+	s.instance.push_back(instance1);
+	s.instance.push_back(instance2);
+
+	RenderScene(s);
+}
 
 
 
