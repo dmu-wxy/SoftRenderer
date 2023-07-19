@@ -246,11 +246,19 @@ glm::mat4 GetPerspective(float fov = glm::radians(90.0f), float aspect = screenW
 	return glm::perspective(fov, aspect, n, f);
 }
 
-void RenderTriangle(Triangle triangle, std::vector<Vertex> vertices) {
-	DrawWireframeTriangle(vertices[triangle.index.x].position,
-		vertices[triangle.index.y].position,
-		vertices[triangle.index.z].position,
-		triangle.color);
+void RenderTriangle(Triangle triangle, std::vector<Vertex> vertices,bool isFill = true) {
+	if (isFill) {
+		DrawFilledTriangle(vertices[triangle.index.x].position,
+			vertices[triangle.index.y].position,
+			vertices[triangle.index.z].position,
+			triangle.color);
+	}
+	else {
+		DrawWireframeTriangle(vertices[triangle.index.x].position,
+			vertices[triangle.index.y].position,
+			vertices[triangle.index.z].position,
+			triangle.color);
+	}
 }
 
 void RenderObject(std::vector<Vertex> vertices, std::vector<Triangle> triangle) {
