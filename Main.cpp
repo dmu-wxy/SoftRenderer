@@ -6,11 +6,14 @@
 #include "iostream"
 #include "vector"
 
+int screenWidth = 640, screenHeight = 640;
+
 struct Vertex {
 	glm::vec4 position;
 	COLORREF color;
 	BYTE r, g, b;
 
+	Vertex() {}
 	Vertex(glm::vec4 position, COLORREF color) {
 		this->position = position;
 		this->color = color;
@@ -18,6 +21,11 @@ struct Vertex {
 		this->g = GetGValue(color);
 		this->b = GetBValue(color);
 	}
+};
+
+struct Triangle {
+	glm::vec3 index;
+	COLORREF color;
 };
 /**
 * 插值算法
@@ -182,35 +190,67 @@ void DrawShadedTriangle(Vertex v0, Vertex v1, Vertex v2) {
 	}
 }
 
-Vertex transform(Vertex v,glm::mat4 scale,glm::mat4 rotate,glm::mat4 translate,
-	glm::mat4 view,glm::mat4 perspective,int screenWidth,int screenHeight) {
+Vertex transform(Vertex v,glm::mat4 model,glm::mat4 view,glm::mat4 perspective,int ScreenWidth = screenWidth,int ScreenHeight = screenHeight) {
 	// 缩放-旋转-平移
-	glm::mat4 model = translate * rotate * scale;
 	glm::mat4 mvp = perspective * view * model;
 	v.position = mvp * v.position;
 
 	// 视口变换
 	float reciprocalW = 1 / v.position.w;
-	v.position.x = (v.position.x * reciprocalW + 1.0f) * 0.5f * screenWidth;
-	v.position.y = (1.0f - v.position.y * reciprocalW) * 0.5f * screenHeight;  // window y轴坐标反着
+	v.position.x = (v.position.x * reciprocalW + 1.0f) * 0.5f * ScreenWidth;
+	v.position.y = (1.0f - v.position.y * reciprocalW) * 0.5f * ScreenHeight;  // window y轴坐标反着
 
 	return v;
+}
+
+glm::mat4 GetModel(glm::vec3 s = { 1.0f, 1.0f, 1.0f }, glm::vec4 r = { 0,1,0,60.0f }, glm::vec3 t = { 0, 0, 5 })
+{
+	glm::mat4 sm = glm::scale(glm::mat4(1.0f), s);
+	glm::mat4 rm = glm::rotate(glm::mat4(1.0f), glm::radians(r.w), glm::vec3(r));
+	glm::mat4 tm = glm::translate(glm::mat4(1.0f), t);
+	//构造模型矩阵
+	return tm * rm * sm;
+}
+
+glm::mat4 GetView(glm::vec3 eye = glm::vec3(0, 0, 0), glm::vec3 center = glm::vec3(0, 0, 1), glm::vec3 up = glm::vec3(0, 1, 0))
+{
+	return glm::lookAt(eye, center, up);
+}
+
+glm::mat4 GetPerspective(float fov = glm::radians(90.0f), float aspect = screenWidth / screenHeight, float n = 0.1f, float f = 100.0f)
+{
+	return glm::perspective(fov, aspect, n, f);
+}
+
+void RenderTriangle(Triangle triangle, std::vector<Vertex> vertices) {
+	DrawWireframeTriangle(vertices[triangle.index.x].position,
+		vertices[triangle.index.y].position,
+		vertices[triangle.index.z].position,
+		triangle.color);
+}
+
+void RenderObject(std::vector<Vertex> vertices, std::vector<Triangle> triangle) {
+	for (int i = 0; i < triangle.size(); i++) {
+		RenderTriangle(triangle[i], vertices);
+	}
 }
 
 void testDrawLine();
 void testDrawTriangle();
 void testDrawShadedTriangle(int screenWidth,int screenHeight);
 Vertex testTransform(Vertex v,int screenWidth,int screenHeight);
+void testRenderObject();
 void testNoteBook();
 
 int main() {
-	int screenWidth = 640, screenHeight = 640;
+	
 	initgraph(screenWidth, screenHeight);
 	putpixel(100, 100, RED);
 
 	testDrawLine();
 	testDrawTriangle();
-	testDrawShadedTriangle(screenWidth,screenHeight);
+	// testDrawShadedTriangle(screenWidth,screenHeight);
+	testRenderObject();
 
 	_getch();
 	closegraph();
@@ -246,14 +286,73 @@ void testDrawShadedTriangle(int screenWidth,int screenHeight) {
 Vertex testTransform(Vertex v,int screenWidth,int screenHeight) {
 
 	return transform(v,
-		glm::scale(glm::mat4(1.0f), glm::vec3(1.0f, 1.0f, 1.0f)),
-		glm::rotate(glm::mat4(1.0f), glm::radians(45.0f), glm::vec3(0, 0, 1)),
-		glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 1)),
-		glm::lookAt(glm::vec3(0, 0, 0), glm::vec3(0, 0, 1), glm::vec3(0, 1, 0)),
-		glm::perspective(glm::radians(90.0f), (float)screenWidth / (float)screenHeight, 0.1f, 100.0f),
+		GetModel(),
+		GetView(),
+		GetPerspective(),
 		screenWidth, screenHeight);
 }
 
+void testRenderObject() {
+	std::vector<Vertex> Vertices;
+	Vertices.resize(8);
+	Vertices[0].position = { 1,1,1 ,1 };
+	Vertices[1].position = { -1,1,1,1 };
+	Vertices[2].position = { -1,-1,1 ,1 };
+	Vertices[3].position = { 1,-1,1 ,1 };
+	Vertices[4].position = { 1,1,-1 ,1 };
+	Vertices[5].position = { -1,1,-1 ,1 };
+	Vertices[6].position = { -1,-1,-1 ,1 };
+	Vertices[7].position = { 1,-1,-1 ,1 };
+
+	//Vertices[0].color = 1.0f;
+	//Vertices[1].color = 1.0f;
+	//Vertices[2].color = 0.5f;
+	//Vertices[3].color = 0.5f;
+	//Vertices[4].color = 0.5f;
+	//Vertices[5].color = 0.5f;
+	//Vertices[6].color = 1.0f;
+	//Vertices[7].color = 1.0f;
+
+	std::vector<Triangle> triangles;
+	triangles.resize(12);
+	triangles[0].index = { 0,1,2 };
+	triangles[0].color = RED;
+	triangles[1].index = { 0,2,3 };
+	triangles[1].color = RED;
+	triangles[2].index = { 4,0,3 };
+	triangles[2].color = GREEN;
+	triangles[3].index = { 4,3,7 };
+	triangles[3].color = GREEN;
+	triangles[4].index = { 5,4,7 };
+	triangles[4].color = BLUE;
+	triangles[5].index = { 5,7,6 };
+	triangles[5].color = BLUE;
+	triangles[6].index = { 1,5,6 };
+	triangles[6].color = YELLOW;
+	triangles[7].index = { 1,6,2 };
+	triangles[7].color = YELLOW;
+	triangles[8].index = { 4,5,1 };
+	triangles[8].color = WHITE;
+	triangles[9].index = { 4,1,0 };
+	triangles[9].color = WHITE;
+	triangles[10].index = { 2,6,7 };
+	triangles[10].color = CYAN;
+	triangles[11].index = { 2,7,3 };
+	triangles[11].color = CYAN;
+
+	// 转换
+	{
+		glm::mat4 model = GetModel();
+		glm::mat4 view = GetView();
+		glm::mat4 perspective = GetPerspective();
+
+		for (int i = 0; i < Vertices.size(); i++) {
+			Vertices[i] = transform(Vertices[i], model, view, perspective);
+		}
+
+		RenderObject(Vertices, triangles);
+	}
+}
 
 
 
