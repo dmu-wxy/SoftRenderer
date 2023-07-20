@@ -8,6 +8,9 @@
 
 int screenWidth = 640, screenHeight = 640;
 
+// 深度缓冲
+std::vector<std::vector<float>> ZBuffer;
+
 struct Vertex {
 	glm::vec4 position;
 	COLORREF color;
@@ -101,11 +104,12 @@ void DrawWireframeTriangle(glm::vec2 P0, glm::vec2 P1, glm::vec2 P2, COLORREF co
 	DrawLine(P2, P0, color);
 }
 
-void DrawFilledTriangle(glm::vec2 P0, glm::vec2 P1, glm::vec2 P2, COLORREF color) {
+
+void DrawFilledTriangle(Vertex P0, Vertex P1, Vertex P2, COLORREF color) {
 	// 排序顶点：P0.y <= P1.y <= P2.y
-	if (P0.y > P1.y) std::swap(P0, P1);
-	if (P0.y > P2.y) std::swap(P0, P2);
-	if (P1.y > P2.y) std::swap(P1, P2);
+	if (P0.position.y > P1.position.y) std::swap(P0, P1);
+	if (P0.position.y > P2.position.y) std::swap(P0, P2);
+	if (P1.position.y > P2.position.y) std::swap(P1, P2);
 
 	//------------------P2|\
 	//--------------------| \
@@ -114,18 +118,21 @@ void DrawFilledTriangle(glm::vec2 P0, glm::vec2 P1, glm::vec2 P2, COLORREF color
 	//--------------------| /
 	//------------------P0|/	
 	// 对每条边的x求插值，因为起点(P0)终点(P1)相同，所以求出的插值(x)个数x02与x01/x12个数之和相同(x01/x12多一个重复的P1)
-	std::vector<float> x01 = Interpolate(P0.y, P0.x, P1.y, P1.x);
-	std::vector<float> x02 = Interpolate(P0.y, P0.x, P2.y, P2.x);
-	std::vector<float> x12 = Interpolate(P1.y, P1.x, P2.y, P2.x);
+	std::vector<float> x01 = Interpolate(P0.position.y, P0.position.x, P1.position.y, P1.position.x);
+	std::vector<float> x02 = Interpolate(P0.position.y, P0.position.x, P2.position.y, P2.position.x);
+	std::vector<float> x12 = Interpolate(P1.position.y, P1.position.x, P2.position.y, P2.position.x);
+
+	std::vector<float> z01 = Interpolate(P0.position.y, P0.position.z, P1.position.y, P1.position.z);
+	std::vector<float> z02 = Interpolate(P0.position.y, P0.position.z, P2.position.y, P2.position.z);
+	std::vector<float> z12 = Interpolate(P1.position.y, P1.position.z, P2.position.y, P2.position.z);
 
 	// 将x01和x12中的点放在一起
 	x01.insert(x01.end(), x12.begin(), x12.end());
 	std::vector<float> x012(x01);
-
+	
 	// 对于两种情况插值
 	float mid = glm::floor(x012.size() / 2);
-	std::vector<float> x_left;
-	std::vector<float> x_right;
+	std::vector<float> x_left, x_right,z_left,z_right;
 
 	//-------第一种情况
 	//---------P2|\
@@ -150,12 +157,37 @@ void DrawFilledTriangle(glm::vec2 P0, glm::vec2 P1, glm::vec2 P2, COLORREF color
 		x_right = x02;
 	}
 
+	z01.insert(z01.end(), z12.begin(), z12.end());
+	std::vector<float> z012(z01);
+
+	float midZ = glm::floor(z012.size() / 2);
+	std::vector<float> z_up, z_under;
+	if (z02[mid] < z012[mid]) {
+		// 视线方向为z正方向，所以z小的在上面
+		z_up = z02;
+		z_under = z012;
+	}
+	else {
+		z_up = z012;
+		z_under = z02;
+	}
+
 	// 从下到上，从左往右绘制
-	for (int i = P0.y; i < P2.y; i++) {
-		for (int j = x_left[i - P0.y]; j < x_right[i - P0.y]; j++) {
-			putpixel(j, i, color);
+	for (int i = P0.position.y; i < P2.position.y; i++) {
+		int index = i - P0.position.y;
+		float z = 1.0f / z_up[index];
+		// std::vector<float> zv = Interpolate(x_left[index], z_left[index], x_right[index], z_right[index]);
+		for (int j = x_left[index]; j < x_right[index]; j++) {
+			if (i < 0 || i > screenHeight || j < 0 || j > screenWidth) continue;
+			std::cout << "z:" << z << std::endl;
+			if (z > ZBuffer[j][i]) {
+				putpixel(j, i, color);
+				Sleep(0.9);
+				ZBuffer[j][i] = z;
+			}
 		}
 	}
+	Sleep(1000);
 }
 
 void DrawShadedTriangle(Vertex v0, Vertex v1, Vertex v2) {
@@ -227,7 +259,7 @@ Vertex transform(Vertex v,glm::mat4 model,glm::mat4 view,glm::mat4 perspective,i
 	return v;
 }
 
-glm::mat4 GetModel(glm::vec3 s = { 1.0f, 1.0f, 1.0f }, glm::vec4 r = { 0,1,0,60.0f }, glm::vec3 t = { 0, 0, 5 })
+glm::mat4 GetModel(glm::vec3 s = { 1.0f, 1.0f, 1.0f }, glm::vec4 r = { 0,1,0,45.0f }, glm::vec3 t = { 0, 0, 5 })
 {
 	glm::mat4 sm = glm::scale(glm::mat4(1.0f), s);
 	glm::mat4 rm = glm::rotate(glm::mat4(1.0f), glm::radians(r.w), glm::vec3(r));
@@ -248,9 +280,9 @@ glm::mat4 GetPerspective(float fov = glm::radians(90.0f), float aspect = screenW
 
 void RenderTriangle(Triangle triangle, std::vector<Vertex> vertices,bool isFill = true) {
 	if (isFill) {
-		DrawFilledTriangle(vertices[triangle.index.x].position,
-			vertices[triangle.index.y].position,
-			vertices[triangle.index.z].position,
+		DrawFilledTriangle(vertices[triangle.index.x],
+			vertices[triangle.index.y],
+			vertices[triangle.index.z],
 			triangle.color);
 	}
 	else {
@@ -276,6 +308,7 @@ void RenderInstance(Instance instances) {
 		model.vertices[i].position = worldM * model.vertices[i].position;
 		std::cout << "RenderInstance::transform: " << i << ",after position: "<<model.vertices[i].position.x<<","<< model.vertices[i].position.y<<","<< model.vertices[i].position.z<<std::endl;
 	}
+	std::cout << "model's triangles size: " << model.triangles.size() << std::endl;
 	for (int i = 0; i < model.triangles.size(); i++) {
 		std::cout << "RenderInstance::RenderTriangle: " << i << std::endl;
 		RenderTriangle(model.triangles[i], model.vertices);
@@ -323,7 +356,7 @@ void testDrawLine() {
 
 void testDrawTriangle() {
 	DrawWireframeTriangle(glm::vec2(100,400), glm::vec2(100,600), glm::vec2(300,600), YELLOW);
-	DrawFilledTriangle(glm::vec2(400, 600), glm::vec2(600, 600), glm::vec2(600, 400), CYAN);
+	// DrawFilledTriangle(glm::vec2(400, 600), glm::vec2(600, 600), glm::vec2(600, 400), CYAN);
 }
 
 void testDrawShadedTriangle(int screenWidth,int screenHeight) {
@@ -411,6 +444,16 @@ void testRenderObject() {
 }
 
 void testRenderScene() {
+
+	ZBuffer.resize(screenWidth);
+	for (int i = 0; i < screenWidth; i++) {
+		ZBuffer[i].resize(screenHeight);
+		for (int j = 0; j < screenHeight; j++) {
+			ZBuffer[i][j] = 0.0f;
+		}
+	}
+
+
 	std::vector<Vertex> Vertices;
 	Vertices.resize(8);
 	Vertices[0].position = { 1,1,1 ,1 };
@@ -471,22 +514,25 @@ void testRenderScene() {
 	instance1.model.name = "1";
 	instance1.model.vertices = Vertices;
 	instance1.model.triangles = triangles;
-	instance1.transform.translate = { 30,0,1 };
-	instance1.transform.rotation = { 0,1,0,0.0f };
+	// 在世界坐标的变换
+	instance1.transform.translate = { 30,0,10 };
+	instance1.transform.rotation = { 0,1,0,60.0f };
 	instance1.transform.scale3D = { 1,1,1 };
 
 	Instance instance2;
 	instance2.model.name = "2";
 	instance2.model.vertices = Vertices;
 	instance2.model.triangles = triangles;
-	instance2.transform.translate = { -30,0,1 };
-	instance2.transform.rotation = { 0,1,0,-0.0f };
+	instance2.transform.translate = { -30,0,10 };
+	instance2.transform.rotation = { 0,1,0,60.0f };
 	instance2.transform.scale3D = { 1,1,1 };
 
 	s.instance.push_back(instance1);
 	s.instance.push_back(instance2);
 
 	RenderScene(s);
+
+	std::cout << "RenderScene success!" << std::endl;
 }
 
 
