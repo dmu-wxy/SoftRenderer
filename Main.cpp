@@ -176,18 +176,15 @@ void DrawFilledTriangle(Vertex P0, Vertex P1, Vertex P2, COLORREF color) {
 	for (int i = P0.position.y; i < P2.position.y; i++) {
 		int index = i - P0.position.y;
 		float z = 1.0f / z_up[index];
-		// std::vector<float> zv = Interpolate(x_left[index], z_left[index], x_right[index], z_right[index]);
 		for (int j = x_left[index]; j < x_right[index]; j++) {
 			if (i < 0 || i > screenHeight || j < 0 || j > screenWidth) continue;
-			std::cout << "z:" << z << std::endl;
 			if (z > ZBuffer[j][i]) {
 				putpixel(j, i, color);
-				Sleep(0.9);
 				ZBuffer[j][i] = z;
 			}
 		}
+		Sleep(1);
 	}
-	Sleep(1000);
 }
 
 void DrawShadedTriangle(Vertex v0, Vertex v1, Vertex v2) {
@@ -268,6 +265,15 @@ glm::mat4 GetModel(glm::vec3 s = { 1.0f, 1.0f, 1.0f }, glm::vec4 r = { 0,1,0,45.
 	return tm * rm * sm;
 }
 
+glm::mat4 GetFixModel(glm::vec3 s = { 1.0f, 1.0f, 1.0f }, glm::vec4 r = { 0,1,0,45.0f }, glm::vec3 t = { 0, 0, 5 })
+{
+	glm::mat4 sm = glm::scale(glm::mat4(1.0f), s);
+	glm::mat4 rm = glm::rotate(glm::mat4(1.0f), glm::radians(r.z), glm::vec3(r));
+	glm::mat4 tm = glm::translate(glm::mat4(1.0f), t);
+	//构造模型矩阵
+	return tm * rm * sm;
+}
+
 glm::mat4 GetView(glm::vec3 eye = glm::vec3(0, 0, 0), glm::vec3 center = glm::vec3(0, 0, 1), glm::vec3 up = glm::vec3(0, 1, 0))
 {
 	return glm::lookAt(eye, center, up);
@@ -301,7 +307,7 @@ void RenderObject(std::vector<Vertex> vertices, std::vector<Triangle> triangle) 
 
 void RenderInstance(Instance instances) {
 	Model model = instances.model;
-	glm::mat4 worldM = GetModel(instances.transform.scale3D, instances.transform.rotation, instances.transform.translate);
+	glm::mat4 worldM = GetFixModel(instances.transform.scale3D, instances.transform.rotation, instances.transform.translate);
 
 	for (int i = 0; i < model.vertices.size(); i++) {
 		std::cout << "RenderInstance::transform: " << i << ",before position: " << model.vertices[i].position.x << "," << model.vertices[i].position.y << "," << model.vertices[i].position.z << std::endl;
